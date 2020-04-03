@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 Array.prototype.indexOfObjectWithProperty = function (propertyName, propertyValue) {
     for (let i in this) {
         const o = this[i];
-        if (o.hasOwnProperty(propertyName) && o[propertyName] === propertyValue)
+        if ((o.hasOwnProperty(propertyName) || o.__lookupGetter__(propertyName) != undefined) && o[propertyName] === propertyValue)
             return parseInt(i);
     }
     return -1;
@@ -17,12 +17,14 @@ Array.prototype.getItemsWithProperty = function (propertyName, propertyValue, fi
     const res = [];
     for (let i in this) {
         const o = this[i];
-        if (o.hasOwnProperty(propertyName) && o[propertyName] === propertyValue) {
+        if ((o.hasOwnProperty(propertyName) || o.__lookupGetter__(propertyName) != undefined) && o[propertyName] === propertyValue) {
             if (first)
                 return o;
             res.push(o);
         }
     }
+    if (first && res.length == 0)
+        return undefined;
     return res;
 };
 Array.prototype.first = function () {

@@ -1,4 +1,7 @@
 import { WebSocketServer } from './classes/web-socket-server.class'
 import './prototype'
-
-const WSS = new WebSocketServer()
+try {
+    const WSS = new WebSocketServer()
+} catch (error) {
+    console.error(error)
+}

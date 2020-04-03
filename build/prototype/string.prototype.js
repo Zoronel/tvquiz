@@ -19,4 +19,14 @@ String.prototype.isUrl = function () {
         '(\\#[-a-z\\d_]*)?$', 'i');
     return pattern.test(this.toString());
 };
+String.prototype.htmlEncode = function () {
+    // var el = document.createElement("div");
+    // el.innerText = el.textContent = this.toString();
+    // return el.innerHTML;
+    let str = this.toString();
+    str = str.replace(/[\u00A0-\u9999<>\&]/gim, function (i) {
+        return '&#' + i.charCodeAt(0) + ';';
+    });
+    return str;
+};
 //# sourceMappingURL=string.prototype.js.map

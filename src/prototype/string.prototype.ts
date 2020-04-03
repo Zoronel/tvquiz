@@ -3,6 +3,7 @@ declare global {
     interface String {
         sanitize(placeHolder?: string): String
         isUrl(): Boolean
+        htmlEncode(): String
     }
 }
 
@@ -24,4 +25,15 @@ String.prototype.isUrl = function (): Boolean {
         '(\\#[-a-z\\d_]*)?$', 'i');
 
     return pattern.test(this.toString());
+}
+
+String.prototype.htmlEncode = function () {
+    // var el = document.createElement("div");
+    // el.innerText = el.textContent = this.toString();
+    // return el.innerHTML;
+    let str: string = this.toString()
+    str = str.replace(/[\u00A0-\u9999<>\&]/gim, function (i) {
+        return '&#' + i.charCodeAt(0) + ';';
+    })
+    return str
 }
