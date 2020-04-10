@@ -31,7 +31,7 @@ export class WebSocketServer {
         this.http = httpFactory.createServer(this.app)
         this.io = socket()
         this.io.listen(this.http)
-        this.http.listen(3000, () => {
+        this.http.listen(3500, () => {
             console.log('Server is Listening on port 3000')
         })
 

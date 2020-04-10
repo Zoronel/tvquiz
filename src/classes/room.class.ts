@@ -46,7 +46,7 @@ export class Room {
         // v.replace(/\s+/, ' ');
         if (v.length > 200) throw ('La domanda deve rimanere entro i 200 caratteri');
         this._question = v;
-        this.roomEmit(Room.EVT_NEW_QUESTION, v, false)
+        this.roomEmit(Room.EVT_NEW_QUESTION, v, true)
     }
 
     public get question(): String {

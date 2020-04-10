@@ -23,7 +23,7 @@ class WebSocketServer {
         this.http = httpFactory.createServer(this.app);
         this.io = socket();
         this.io.listen(this.http);
-        this.http.listen(3000, () => {
+        this.http.listen(3500, () => {
             console.log('Server is Listening on port 3000');
         });
         this.building = new room_collector_1.RoomCollector(this);
@@ -102,118 +102,133 @@ class WebSocketServer {
     }
     eventSort(player, clientEvent) {
         var _a, _b, _c, _d, _e, _f, _g, _h;
-        switch (clientEvent.type) {
-            case 'RoomCollector':
-                switch (clientEvent.name) {
-                    case 'room_list':
-                        let firstRoomList = new event_class_1.SocketEvent(room_collector_1.RoomCollector.EVT_REFRESH_ROOM_LIST, 'Global', { rooms: this.building.roomsLite });
-                        player.connectionEmit(firstRoomList);
-                        break;
-                    case 'move_player':
-                        const movePlayerData = clientEvent.data;
-                        this.building.movePlayer(movePlayerData.playerId, movePlayerData.destRoomId);
-                        break;
-                    case 'close_room':
-                        const roomId = clientEvent.data;
-                        this.building.removeRoom(roomId);
-                        break;
-                    default:
-                        console.error('evento non gestito', clientEvent.name);
-                        break;
-                }
-                break;
-            case 'Room':
-                switch (clientEvent.name) {
-                    case 'get_room_info':
-                        const id = clientEvent.data.id;
-                        const thisRoom = this.building.getRoom(id);
-                        if (thisRoom != undefined) {
-                            let roomInfo = {
-                                roomName: thisRoom.name,
-                                roomId: thisRoom.id,
-                                roomQuestion: thisRoom.question,
-                                roomGm: ((_a = thisRoom.GM) === null || _a === void 0 ? void 0 : _a.userName) || '',
-                                roomGmId: ((_b = thisRoom.GM) === null || _b === void 0 ? void 0 : _b.id) || '',
-                                roomIsLobby: thisRoom.isLobby
-                            };
-                            const thisEvent = new event_class_1.SocketEvent('room_info', 'Room', roomInfo);
-                            player.connectionEmit(thisEvent);
-                        }
-                        break;
-                    case 'add_room':
-                        const newRoomData = clientEvent.data;
-                        const newRoom = this.building.addRoom(newRoomData.roomName, player, newRoomData.roomQuestion);
-                        player.playerEmit('room_ready', newRoom.id);
-                        break;
-                    case 'room_booking':
-                        const timeBooking = +new Date();
-                        const roomToBookIn = player.currentRoom;
-                        if (roomToBookIn && !roomToBookIn.isLobby) {
-                            const bookingEvent = new event_class_1.SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking });
-                            roomToBookIn.GM.connectionEmit(bookingEvent);
-                        }
-                        else {
-                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore durante la prenotazione della domanda'));
-                        }
-                        break;
-                    case 'allow_answer':
-                        const allowAnswerData = clientEvent.data;
-                        const allowThisRoom = this.building.getRoom(allowAnswerData.roomId);
-                        const allowThisUser = allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.getPlayerById(allowAnswerData.playerId);
-                        allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.playerEmit('answer_allowed', { result: true });
-                        const userNotAllowed = (allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.list.filter(p => p.id != allowAnswerData.playerId)) || [];
-                        for (const p of userNotAllowed) {
-                            p.playerEmit('answer_allowed', { result: false, allowedUser: allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.userName });
-                        }
-                        break;
-                    case 'typing':
-                        if (player.role == player_class_1.Player.ROLE_PLAYER) {
-                            (_d = (_c = player.currentRoom) === null || _c === void 0 ? void 0 : _c.GM) === null || _d === void 0 ? void 0 : _d.connectionEmit(new event_class_1.SocketEvent('typing', 'Room', player.id));
-                        }
-                        else if (player.role == player_class_1.Player.ROLE_GM) {
-                            player.currentRoom.roomEmit('gm_typing');
-                        }
-                        break;
-                    case 'stop_typing':
-                        if (player.role == player_class_1.Player.ROLE_PLAYER) {
-                            (_f = (_e = player.currentRoom) === null || _e === void 0 ? void 0 : _e.GM) === null || _f === void 0 ? void 0 : _f.connectionEmit(new event_class_1.SocketEvent('stop_typing', 'Room', player.id));
-                        }
-                        else if (player.role == player_class_1.Player.ROLE_GM) {
-                            player.currentRoom.roomEmit('gm_stop_typing');
-                        }
-                        break;
-                    case 'new_answer':
-                        const newAnswerRoom = player.currentRoom;
-                        if (newAnswerRoom && !newAnswerRoom.isLobby) {
-                            player.currentRoom.GM.connectionEmit(new event_class_1.SocketEvent('new_answer', 'Room', { playerId: player.id, answer: clientEvent.data }));
-                        }
-                        else {
-                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
-                        }
-                        break;
-                    case 'answer_found':
-                        (_g = player.currentRoom) === null || _g === void 0 ? void 0 : _g.roomEmit('answer_found', { playerId: clientEvent.data.playerId, answer: clientEvent.data.answer });
-                        break;
-                    case 'answer_not_found':
-                        (_h = player.currentRoom) === null || _h === void 0 ? void 0 : _h.roomEmit('answer_not_found', { playerId: clientEvent.data.playerId });
-                        break;
-                    case 'player_surrender':
-                        const surrenderRoom = player.currentRoom;
-                        if (surrenderRoom && !surrenderRoom.isLobby) {
-                            player.currentRoom.roomEmit('player_surrender', { playerId: player.id }, true);
-                        }
-                        else {
-                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
-                        }
-                        break;
-                    default:
-                        console.error('evento non gestito', clientEvent.name);
-                        break;
-                }
-                break;
-            default:
-                console.error('tipologia evento non gestita', clientEvent.type);
-                break;
+        try {
+            switch (clientEvent.type) {
+                case 'RoomCollector':
+                    switch (clientEvent.name) {
+                        case 'room_list':
+                            let firstRoomList = new event_class_1.SocketEvent(room_collector_1.RoomCollector.EVT_REFRESH_ROOM_LIST, 'Global', { rooms: this.building.roomsLite });
+                            player.connectionEmit(firstRoomList);
+                            break;
+                        case 'move_player':
+                            const movePlayerData = clientEvent.data;
+                            this.building.movePlayer(movePlayerData.playerId, movePlayerData.destRoomId);
+                            break;
+                        case 'close_room':
+                            const roomId = clientEvent.data;
+                            this.building.removeRoom(roomId);
+                            break;
+                        default:
+                            console.error('evento non gestito', clientEvent.name);
+                            break;
+                    }
+                    break;
+                case 'Room':
+                    switch (clientEvent.name) {
+                        case 'get_room_info':
+                            const id = clientEvent.data.id;
+                            const thisRoom = this.building.getRoom(id);
+                            if (thisRoom != undefined) {
+                                let roomInfo = {
+                                    roomName: thisRoom.name,
+                                    roomId: thisRoom.id,
+                                    roomQuestion: thisRoom.question,
+                                    roomGm: ((_a = thisRoom.GM) === null || _a === void 0 ? void 0 : _a.userName) || '',
+                                    roomGmId: ((_b = thisRoom.GM) === null || _b === void 0 ? void 0 : _b.id) || '',
+                                    roomIsLobby: thisRoom.isLobby
+                                };
+                                const thisEvent = new event_class_1.SocketEvent('room_info', 'Room', roomInfo);
+                                player.connectionEmit(thisEvent);
+                            }
+                            break;
+                        case 'add_room':
+                            const newRoomData = clientEvent.data;
+                            const newRoom = this.building.addRoom(newRoomData.roomName, player, newRoomData.roomQuestion);
+                            player.playerEmit('room_ready', newRoom.id);
+                            break;
+                        case 'room_booking':
+                            const timeBooking = +new Date();
+                            const roomToBookIn = player.currentRoom;
+                            if (roomToBookIn && !roomToBookIn.isLobby) {
+                                const bookingEvent = new event_class_1.SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking });
+                                roomToBookIn.GM.connectionEmit(bookingEvent);
+                            }
+                            else {
+                                player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore durante la prenotazione della domanda'));
+                            }
+                            break;
+                        case 'allow_answer':
+                            const allowAnswerData = clientEvent.data;
+                            const allowThisRoom = this.building.getRoom(allowAnswerData.roomId);
+                            const allowThisUser = allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.getPlayerById(allowAnswerData.playerId);
+                            allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.playerEmit('answer_allowed', { result: true });
+                            const userNotAllowed = (allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.list.filter(p => p.id != allowAnswerData.playerId)) || [];
+                            for (const p of userNotAllowed) {
+                                p.playerEmit('answer_allowed', { result: false, allowedUser: allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.userName });
+                            }
+                            break;
+                        case 'typing':
+                            if (player.role == player_class_1.Player.ROLE_PLAYER) {
+                                (_d = (_c = player.currentRoom) === null || _c === void 0 ? void 0 : _c.GM) === null || _d === void 0 ? void 0 : _d.connectionEmit(new event_class_1.SocketEvent('typing', 'Room', player.id));
+                            }
+                            else if (player.role == player_class_1.Player.ROLE_GM) {
+                                player.currentRoom.roomEmit('gm_typing');
+                            }
+                            break;
+                        case 'stop_typing':
+                            if (player.role == player_class_1.Player.ROLE_PLAYER) {
+                                (_f = (_e = player.currentRoom) === null || _e === void 0 ? void 0 : _e.GM) === null || _f === void 0 ? void 0 : _f.connectionEmit(new event_class_1.SocketEvent('stop_typing', 'Room', player.id));
+                            }
+                            else if (player.role == player_class_1.Player.ROLE_GM) {
+                                player.currentRoom.roomEmit('gm_stop_typing');
+                            }
+                            break;
+                        case 'new_answer':
+                            const newAnswerRoom = player.currentRoom;
+                            if (newAnswerRoom && !newAnswerRoom.isLobby) {
+                                player.currentRoom.GM.connectionEmit(new event_class_1.SocketEvent('new_answer', 'Room', { playerId: player.id, answer: clientEvent.data }));
+                            }
+                            else {
+                                player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
+                            }
+                            break;
+                        case 'answer_found':
+                            (_g = player.currentRoom) === null || _g === void 0 ? void 0 : _g.roomEmit('answer_found', { playerId: clientEvent.data.playerId, answer: clientEvent.data.answer });
+                            break;
+                        case 'answer_not_found':
+                            (_h = player.currentRoom) === null || _h === void 0 ? void 0 : _h.roomEmit('answer_not_found', { playerId: clientEvent.data.playerId });
+                            break;
+                        case 'player_surrender':
+                            const surrenderRoom = player.currentRoom;
+                            if (surrenderRoom && !surrenderRoom.isLobby) {
+                                player.currentRoom.roomEmit('player_surrender', { playerId: player.id }, true);
+                            }
+                            else {
+                                player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
+                            }
+                            break;
+                        case 'new_question':
+                            const question = clientEvent.data.trim();
+                            if (question.length == 0) {
+                                player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nel salvataggio della nuova domanda'));
+                            }
+                            else {
+                                player.currentRoom.question = question;
+                            }
+                            break;
+                        default:
+                            console.error('evento non gestito', clientEvent.name);
+                            break;
+                    }
+                    break;
+                default:
+                    console.error('tipologia evento non gestita', clientEvent.type);
+                    break;
+            }
+        }
+        catch (error) {
+            console.error(error);
+            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', error.toString()));
         }
     }
 }
