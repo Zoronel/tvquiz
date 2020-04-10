@@ -108,72 +108,135 @@ export class WebSocketServer {
         }
         if (thisRoom == undefined) {
             console.error('Server.roomEmit. room not found', room, this.building)
-            throw ('Given room identifyer is invalid')
+            throw ('Given room identyfier is invalid')
         }
         thisRoom.roomEmit(eventName, data)
     }
 
     private eventSort(player: Player, clientEvent: { type: string; name: string; data: any }) {
-        switch (clientEvent.type) {
-            case 'RoomCollector':
-                switch (clientEvent.name) {
-                    case 'room_list':
-                        let firstRoomList = new SocketEvent(RoomCollector.EVT_REFRESH_ROOM_LIST, 'Global', { rooms: this.building.roomsLite })
-                        player.connectionEmit(firstRoomList)
-                        break;
-                    case 'move_player':
-                        const movePlayerData = clientEvent.data
-                        this.building.movePlayer(movePlayerData.playerId, movePlayerData.destRoomId)
-                        break
-                    case 'close_room':
-                        const roomId: number = clientEvent.data
-                        this.building.removeRoom(roomId)
-                        break
-                    default:
-                        console.error('evento non gestito', clientEvent.name)
-                        break;
-                }
-                break;
-            case 'Room':
-                switch (clientEvent.name) {
-                    case 'get_room_info':
-                        const id: number = clientEvent.data.id
-                        const thisRoom: Room | undefined = this.building.getRoom(id)
-                        if (thisRoom != undefined) {
-                            let roomInfo = {
-                                roomName: thisRoom.name,
-                                roomId: thisRoom.id,
-                                roomQuestion: thisRoom.question,
-                                roomGm: thisRoom.GM?.userName,
-                                roomGmId: thisRoom.GM?.id,
-                                roomIsLobby: thisRoom.isLobby
+        try {
+
+
+            switch (clientEvent.type) {
+                case 'RoomCollector':
+                    switch (clientEvent.name) {
+                        case 'room_list':
+                            let firstRoomList = new SocketEvent(RoomCollector.EVT_REFRESH_ROOM_LIST, 'Global', { rooms: this.building.roomsLite })
+                            player.connectionEmit(firstRoomList)
+                            break;
+                        case 'move_player':
+                            const movePlayerData = clientEvent.data
+                            this.building.movePlayer(movePlayerData.playerId, movePlayerData.destRoomId)
+                            break
+                        case 'close_room':
+                            const roomId: number = clientEvent.data
+                            this.building.removeRoom(roomId)
+                            break
+                        default:
+                            console.error('evento non gestito', clientEvent.name)
+                            break;
+                    }
+                    break;
+                case 'Room':
+                    switch (clientEvent.name) {
+                        case 'get_room_info':
+                            const id: number = clientEvent.data.id
+                            const thisRoom: Room | undefined = this.building.getRoom(id)
+                            if (thisRoom != undefined) {
+                                let roomInfo = {
+                                    roomName: thisRoom.name,
+                                    roomId: thisRoom.id,
+                                    roomQuestion: thisRoom.question,
+                                    roomGm: thisRoom.GM?.userName || '',
+                                    roomGmId: thisRoom.GM?.id || '',
+                                    roomIsLobby: thisRoom.isLobby
+                                }
+                                const thisEvent = new SocketEvent('room_info', 'Room', roomInfo)
+                                player.connectionEmit(thisEvent)
                             }
-                            const thisEvent = new SocketEvent('room_info', 'Room', roomInfo)
-                            player.connectionEmit(thisEvent)
-                        }
-                        break;
-                    case 'add_room':
-                        const newRoomData = clientEvent.data
-                        const newRoom: Room = this.building.addRoom(newRoomData.roomName, player, newRoomData.roomQuestion)
-                        player.playerEmit('room_ready', newRoom.id)
-                        break;
-                    case 'room_booking':
-                        const timeBooking: number = +new Date()
-                        const roomBookingData = clientEvent.data
-                        const roomToBookIn = this.building.getRoom(roomBookingData.roomId)
-                        const bookingEvent: SocketEvent = new SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking })
-                        roomToBookIn?.GM.connectionEmit(bookingEvent)
-                        // roomToBookIn?.GM.playerEmit('player_reservation', player.id)
-                        // const playerToBook = roomToBookIn?.getPlayerById(roomBookingData.playerId)
-                        break
-                    default:
-                        console.error('evento non gestito', clientEvent.name)
-                        break;
-                }
-                break;
-            default:
-                console.error('tipologia evento non gestita', clientEvent.type)
-                break;
+                            break;
+                        case 'add_room':
+                            const newRoomData = clientEvent.data
+                            const newRoom: Room = this.building.addRoom(newRoomData.roomName, player, newRoomData.roomQuestion)
+                            player.playerEmit('room_ready', newRoom.id)
+                            break;
+                        case 'room_booking':
+                            const timeBooking: number = +new Date()
+                            const roomToBookIn: Room = player.currentRoom
+                            if (roomToBookIn && !roomToBookIn.isLobby) {
+                                const bookingEvent: SocketEvent = new SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking })
+                                roomToBookIn.GM.connectionEmit(bookingEvent)
+                            } else {
+                                player.connectionEmit(new SocketEvent('error', 'Global', 'Errore durante la prenotazione della domanda'))
+                            }
+                            break
+                        case 'allow_answer':
+                            const allowAnswerData: { roomId: number, playerId: string } = clientEvent.data
+                            const allowThisRoom = this.building.getRoom(allowAnswerData.roomId)
+                            const allowThisUser = allowThisRoom?.players.getPlayerById(allowAnswerData.playerId)
+                            allowThisUser?.playerEmit('answer_allowed', { result: true })
+                            const userNotAllowed: Player[] = allowThisRoom?.players.list.filter(p => p.id != allowAnswerData.playerId) || []
+                            for (const p of userNotAllowed) {
+                                p.playerEmit('answer_allowed', { result: false, allowedUser: allowThisUser?.userName })
+                            }
+                            break
+                        case 'typing':
+                            if (player.role == Player.ROLE_PLAYER) {
+                                player.currentRoom?.GM?.connectionEmit(new SocketEvent('typing', 'Room', player.id))
+                            } else if (player.role == Player.ROLE_GM) {
+                                player.currentRoom.roomEmit('gm_typing')
+                            }
+                            break
+                        case 'stop_typing':
+                            if (player.role == Player.ROLE_PLAYER) {
+                                player.currentRoom?.GM?.connectionEmit(new SocketEvent('stop_typing', 'Room', player.id))
+                            } else if (player.role == Player.ROLE_GM) {
+                                player.currentRoom.roomEmit('gm_stop_typing')
+                            }
+                            break
+                        case 'new_answer':
+                            const newAnswerRoom: Room = player.currentRoom
+                            if (newAnswerRoom && !newAnswerRoom.isLobby) {
+                                player.currentRoom.GM.connectionEmit(new SocketEvent('new_answer', 'Room', { playerId: player.id, answer: clientEvent.data }))
+                            } else {
+                                player.connectionEmit(new SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'))
+                            }
+                            break
+                        case 'answer_found':
+                            player.currentRoom?.roomEmit('answer_found', { playerId: clientEvent.data.playerId, answer: clientEvent.data.answer })
+                            break
+                        case 'answer_not_found':
+                            player.currentRoom?.roomEmit('answer_not_found', { playerId: clientEvent.data.playerId })
+                            break
+                        case 'player_surrender':
+                            const surrenderRoom: Room = player.currentRoom
+                            if (surrenderRoom && !surrenderRoom.isLobby) {
+                                player.currentRoom.roomEmit('player_surrender', { playerId: player.id }, true)
+                            } else {
+                                player.connectionEmit(new SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'))
+                            }
+                            break
+                        case 'new_question':
+                            const question: string = clientEvent.data.trim()
+                            if (question.length == 0) {
+                                player.connectionEmit(new SocketEvent('error', 'Global', 'Errore nel salvataggio della nuova domanda'))
+                            } else {
+                                player.currentRoom.question = question
+                            }
+                            break
+                        default:
+                            console.error('evento non gestito', clientEvent.name)
+                            break;
+                    }
+                    break;
+                default:
+                    console.error('tipologia evento non gestita', clientEvent.type)
+                    break;
+            }
+        } catch (error) {
+            console.error(error)
+            player.connectionEmit(new SocketEvent('error', 'Global', error.toString()))
+
         }
     }
 }

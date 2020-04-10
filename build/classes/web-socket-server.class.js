@@ -96,12 +96,12 @@ class WebSocketServer {
         }
         if (thisRoom == undefined) {
             console.error('Server.roomEmit. room not found', room, this.building);
-            throw ('Given room identifyer is invalid');
+            throw ('Given room identyfier is invalid');
         }
         thisRoom.roomEmit(eventName, data);
     }
     eventSort(player, clientEvent) {
-        var _a, _b;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         switch (clientEvent.type) {
             case 'RoomCollector':
                 switch (clientEvent.name) {
@@ -132,8 +132,8 @@ class WebSocketServer {
                                 roomName: thisRoom.name,
                                 roomId: thisRoom.id,
                                 roomQuestion: thisRoom.question,
-                                roomGm: (_a = thisRoom.GM) === null || _a === void 0 ? void 0 : _a.userName,
-                                roomGmId: (_b = thisRoom.GM) === null || _b === void 0 ? void 0 : _b.id,
+                                roomGm: ((_a = thisRoom.GM) === null || _a === void 0 ? void 0 : _a.userName) || '',
+                                roomGmId: ((_b = thisRoom.GM) === null || _b === void 0 ? void 0 : _b.id) || '',
                                 roomIsLobby: thisRoom.isLobby
                             };
                             const thisEvent = new event_class_1.SocketEvent('room_info', 'Room', roomInfo);
@@ -147,12 +147,64 @@ class WebSocketServer {
                         break;
                     case 'room_booking':
                         const timeBooking = +new Date();
-                        const roomBookingData = clientEvent.data;
-                        const roomToBookIn = this.building.getRoom(roomBookingData.roomId);
-                        const bookingEvent = new event_class_1.SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking });
-                        roomToBookIn === null || roomToBookIn === void 0 ? void 0 : roomToBookIn.GM.connectionEmit(bookingEvent);
-                        // roomToBookIn?.GM.playerEmit('player_reservation', player.id)
-                        // const playerToBook = roomToBookIn?.getPlayerById(roomBookingData.playerId)
+                        const roomToBookIn = player.currentRoom;
+                        if (roomToBookIn && !roomToBookIn.isLobby) {
+                            const bookingEvent = new event_class_1.SocketEvent('player_reservation', 'Room', { playerId: player.id, timeBooking: timeBooking });
+                            roomToBookIn.GM.connectionEmit(bookingEvent);
+                        }
+                        else {
+                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore durante la prenotazione della domanda'));
+                        }
+                        break;
+                    case 'allow_answer':
+                        const allowAnswerData = clientEvent.data;
+                        const allowThisRoom = this.building.getRoom(allowAnswerData.roomId);
+                        const allowThisUser = allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.getPlayerById(allowAnswerData.playerId);
+                        allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.playerEmit('answer_allowed', { result: true });
+                        const userNotAllowed = (allowThisRoom === null || allowThisRoom === void 0 ? void 0 : allowThisRoom.players.list.filter(p => p.id != allowAnswerData.playerId)) || [];
+                        for (const p of userNotAllowed) {
+                            p.playerEmit('answer_allowed', { result: false, allowedUser: allowThisUser === null || allowThisUser === void 0 ? void 0 : allowThisUser.userName });
+                        }
+                        break;
+                    case 'typing':
+                        if (player.role == player_class_1.Player.ROLE_PLAYER) {
+                            (_d = (_c = player.currentRoom) === null || _c === void 0 ? void 0 : _c.GM) === null || _d === void 0 ? void 0 : _d.connectionEmit(new event_class_1.SocketEvent('typing', 'Room', player.id));
+                        }
+                        else if (player.role == player_class_1.Player.ROLE_GM) {
+                            player.currentRoom.roomEmit('gm_typing');
+                        }
+                        break;
+                    case 'stop_typing':
+                        if (player.role == player_class_1.Player.ROLE_PLAYER) {
+                            (_f = (_e = player.currentRoom) === null || _e === void 0 ? void 0 : _e.GM) === null || _f === void 0 ? void 0 : _f.connectionEmit(new event_class_1.SocketEvent('stop_typing', 'Room', player.id));
+                        }
+                        else if (player.role == player_class_1.Player.ROLE_GM) {
+                            player.currentRoom.roomEmit('gm_stop_typing');
+                        }
+                        break;
+                    case 'new_answer':
+                        const newAnswerRoom = player.currentRoom;
+                        if (newAnswerRoom && !newAnswerRoom.isLobby) {
+                            player.currentRoom.GM.connectionEmit(new event_class_1.SocketEvent('new_answer', 'Room', { playerId: player.id, answer: clientEvent.data }));
+                        }
+                        else {
+                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
+                        }
+                        break;
+                    case 'answer_found':
+                        (_g = player.currentRoom) === null || _g === void 0 ? void 0 : _g.roomEmit('answer_found', { playerId: clientEvent.data.playerId, answer: clientEvent.data.answer });
+                        break;
+                    case 'answer_not_found':
+                        (_h = player.currentRoom) === null || _h === void 0 ? void 0 : _h.roomEmit('answer_not_found', { playerId: clientEvent.data.playerId });
+                        break;
+                    case 'player_surrender':
+                        const surrenderRoom = player.currentRoom;
+                        if (surrenderRoom && !surrenderRoom.isLobby) {
+                            player.currentRoom.roomEmit('player_surrender', { playerId: player.id }, true);
+                        }
+                        else {
+                            player.connectionEmit(new event_class_1.SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'));
+                        }
                         break;
                     default:
                         console.error('evento non gestito', clientEvent.name);
