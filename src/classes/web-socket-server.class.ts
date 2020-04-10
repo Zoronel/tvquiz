@@ -211,7 +211,7 @@ export class WebSocketServer {
                         case 'player_surrender':
                             const surrenderRoom: Room = player.currentRoom
                             if (surrenderRoom && !surrenderRoom.isLobby) {
-                                player.currentRoom.roomEmit('player_surrender', { playerId: player.id }, true)
+                                player.currentRoom.roomEmit('player_surrender', player.id, true)
                             } else {
                                 player.connectionEmit(new SocketEvent('error', 'Global', 'Errore nell\'invio della risposta'))
                             }

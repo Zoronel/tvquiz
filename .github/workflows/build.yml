@@ -28,5 +28,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: "build-${{github.run_id}}"
+        name: "build-server-${{github.run_id}}"
         path: "."
