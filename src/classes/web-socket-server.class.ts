@@ -32,7 +32,7 @@ export class WebSocketServer {
         this.io = socket()
         this.io.listen(this.http)
         this.http.listen(3500, () => {
-            console.log('Server is Listening on port 3000')
+            console.log('Server is Listening on port 3500')
         })
 
         this.building = new RoomCollector(this)
