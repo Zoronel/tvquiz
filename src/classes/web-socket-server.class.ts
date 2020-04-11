@@ -187,13 +187,6 @@ export class WebSocketServer {
                                 player.currentRoom.roomEmit('gm_typing')
                             }
                             break
-                        case 'stop_typing':
-                            if (player.role == Player.ROLE_PLAYER) {
-                                player.currentRoom?.GM?.connectionEmit(new SocketEvent('stop_typing', 'Room', player.id))
-                            } else if (player.role == Player.ROLE_GM) {
-                                player.currentRoom.roomEmit('gm_stop_typing')
-                            }
-                            break
                         case 'new_answer':
                             const newAnswerRoom: Room = player.currentRoom
                             if (newAnswerRoom && !newAnswerRoom.isLobby) {
